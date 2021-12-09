@@ -19,6 +19,7 @@ int main(int argc, char** argv)
 		exit(-1);
 	}
 
+	printf("Welcome to branch v1.1!\n");
 	int M = atoi(argv[1]);
 	int N = atoi(argv[2]);
 	int lda = atoi(argv[3]);
