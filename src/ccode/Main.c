@@ -1,12 +1,13 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<time.h>
+#include "../include/reflapack.h"
 #include "../include/qdwheig.h"
 
 
-#define NORMEST_TEST 0
+#define NORMEST_TEST 1
 #define QR_TEST 0
-#define DSYQDWH_TEST 1
+#define DSYQDWH_TEST 0 
 #define DGECON_TEST 0
 
 
@@ -35,13 +36,21 @@ int main(int argc, char** argv)
 	{
 		for (int i = 0; i < M; i++)
 		{
-			A[i + j * lda] = (double) rand() / (double) RAND_MAX;
-			fprintf(fp, "A(%d, %d) = %.12f;\n", i + 1, j + 1, A[i + j * lda]);
+			if (i >= j)
+			{
+				A[i + j * lda] = (double) rand() / (double) RAND_MAX;
+				fprintf(fp, "A(%d, %d) = %.12f;\n", i + 1, j + 1, A[i + j * lda]);
+			}
+			else
+			{
+				A[i + j * lda] = A[j + i * lda];
+				fprintf(fp, "A(%d, %d) = %.12f;\n", i + 1, j + 1, A[i + j * lda]);
+			}
 		}
 	}
 
-	fprintf(fp, "norm0 = %.12f;\n", normest(M, N, A, lda, 1e-6));
-	fprintf(fp, "norm1 = normest(A);\n");
+	fprintf(fp, "norm0 = %.12f;\n", dsynormest(M, A, lda, 3e-1));
+	fprintf(fp, "norm1 = normest(A, 3e-1);\n");
 	fclose(fp);
 #endif
 
@@ -86,7 +95,7 @@ int main(int argc, char** argv)
 	//dsyqdwh test
 #if DSYQDWH_TEST		
 	fp = fopen("TEST.m", "w");
-	fprintf(fp, "function [U0, U1, error] = TEST\n");
+	fprintf(fp, "function [A, U0, U1, error] = TEST\n");
 	for (int j = 0; j < N; j++)
 	{
 		for (int i = 0; i < M; i++)

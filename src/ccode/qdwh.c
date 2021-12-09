@@ -5,21 +5,21 @@
 #include<string.h>
 #include<complex.h>
 #include<float.h>
-#include "../include/qdwheig.h"
+#include "../include/reflapack.h"
 
 
 
 
-//Estimate the 2-norm of the matrix
-double normest(int M, int N, const double *A, int lda, double tol)
+//Estimate the 2-norm of a symmetric matrix A (fill upper triangular part)
+double dsynormest(int M, const double *A, int lda, double tol)
 {
 	//Initialization
 	srand(time(NULL));
-	double *y = (double *)malloc(N * sizeof(double));
+	double *y = (double *)malloc(M * sizeof(double));
 	double *x = (double *)malloc(M * sizeof(double));
 	
 	//Construct initial vector
-	for (int i = 0; i < N; i++)
+	for (int i = 0; i < M; i++)
 	{
 		y[i] = (double) rand() / (double) RAND_MAX;
 	}
@@ -31,7 +31,7 @@ double normest(int M, int N, const double *A, int lda, double tol)
 	while(1)
 	{
 		n0 = nest;
-		dgemv_("N", &M, &N, &alpha, A, &lda, y, &INCX, &beta, x, &INCY);
+		dsymv_("U", &M, &alpha, A, &lda, y, &INCY, &beta, x, &INCX);
 		normx = dnrm2_(&M, x, &INCX);
 		if (normx == 0.0)
 		{
@@ -45,8 +45,8 @@ double normest(int M, int N, const double *A, int lda, double tol)
 			double quo = 1.0 / normx;
 			dscal_(&M, &quo, x, &INCX);
 		}
-		dgemv_("T", &M, &N, &alpha, A, &lda, x, &INCX, &beta, y, &INCY);
-		nest = dnrm2_(&N, y, &INCY);
+		dsymv_("U", &M, &alpha, A, &lda, x, &INCX, &beta, y, &INCY);
+		nest = dnrm2_(&M, y, &INCY);
 		if (abs(n0 - nest) <= tol * nest) break;
 	}
 	return nest;
@@ -56,7 +56,7 @@ double normest(int M, int N, const double *A, int lda, double tol)
 //QDWH algorithm to compute polar factor U of a symmetric matrix A
 //INPUT: 
 //M: Dimension of A
-//A: M * M symmetric matrix with leading dimension lda, row major
+//A: M * M symmetric matrix with leading dimension lda, column major, fill upper triangular part
 //lda: Leading dimenstion of A
 //U: Space to store polar factor
 //ldu: Leading dimension of U
@@ -64,40 +64,59 @@ double normest(int M, int N, const double *A, int lda, double tol)
 //U: polar factor of matrix A
 void dsyqdwh(int M, const double *A, int lda, double *U, int ldu)
 {
-	//Construct initial matrix U = A / normest(A, 3e-1)
+	//Construct initial matrix U = A / dsynormest(A, 3e-1)
 	//and choose initial L = 0.9 / condest(A)
 	const double *tempA = A; 
 	double *tempU = U;
 
 	for (int j = 0; j < M; j++)
 	{
-		memcpy(tempU, tempA, M * sizeof(double));
+		memcpy(tempU, tempA, (j + 1) * sizeof(double));
 		tempA += lda;
 		tempU += ldu;
 	}
 	
-	double *WORK = (double *)malloc(4 * M * sizeof(double));
+	double *WORK = (double *)malloc(M * sizeof(double));
 	int *IWORK = (int *)malloc(M * sizeof(int));
-	double Anorm = dlange_("1", &M, &M, U, &ldu, WORK);
+	double Anorm = dlansy_("1", "U", &M, U, &ldu, WORK);
 	int *IPIV = (int *)malloc(M * sizeof(int));
 	double RCOND;
 	int INFO;
-	dgetrf_(&M, &M, U, &ldu, IPIV, &INFO);
-	dgecon_("1", &M, U, &lda, &Anorm, &RCOND, WORK, IWORK, &INFO);
+	int LWORK = -1;
+	dsytrf_("U", &M, U, &ldu, IPIV, WORK, &LWORK, &INFO);
+	LWORK = *WORK;
+	free(WORK);
+	WORK = (double *)malloc(LWORK * sizeof(double));
+	dsytrf_("U", &M, U, &ldu, IPIV, WORK, &LWORK, &INFO);
+	free(WORK);
+	WORK = (double *)malloc(2 * M * sizeof(double));
+	dsycon_("U", &M, U, &ldu, IPIV, &Anorm, &RCOND, WORK, IWORK, &INFO);
 	double L = 0.9 * RCOND;
+	//printf("RCOND = %f\n", RCOND);
 	
 	tempU = U;
 	tempA = A;
 	for (int j = 0; j < M; j++)
 	{
-		memcpy(tempU, tempA, M * sizeof(double));
+		memcpy(tempU, tempA, (j + 1) * sizeof(double));
 		tempA += lda;
 		tempU += ldu;
 	}
 
+	//Fill the lower triangular part of U
+	tempU = U;
+	for (int j = 0; j < M - 1; j++)
+	{
+		for (int i = j + 1; i < M; i++)
+		{
+			tempU[i] = U[j + i * ldu];
+		}
+	}
+
+	//Scaling
 	tempU = U;
 	int INCU = 1;
-	double quo = 1.0 / normest(M, M, A, lda, 3e-1);
+	double quo = 1.0 / dsynormest(M, A, lda, 3e-1);
 	for (int j = 0; j < M; j++)
 	{
 		dscal_(&M, &quo, tempU, &INCU);
