@@ -8,15 +8,16 @@
 #include "../include/reflapack.h"
 
 
+#define DEBUG 0
 
 
 //Estimate the 2-norm of a symmetric matrix A (fill upper triangular part)
-double dsynormest(int M, const double *A, int lda, double tol)
+double dsynormest(int M, const double *A, int lda, double tol, double *WORK)
 {
 	//Initialization
 	srand(time(NULL));
-	double *y = (double *)malloc(M * sizeof(double));
-	double *x = (double *)malloc(M * sizeof(double));
+	double *y = WORK;
+	double *x = WORK + M;
 	
 	//Construct initial vector
 	for (int i = 0; i < M; i++)
@@ -60,14 +61,33 @@ double dsynormest(int M, const double *A, int lda, double tol)
 //lda: Leading dimenstion of A
 //U: Space to store polar factor
 //ldu: Leading dimension of U
+//B: Working space, double, dimenstion 2M * M
+//Uprev: Working space, double, dimension M * M
+//IPIV: Working space, int, dimension M
+//QWORK: Working space, double, dimension M
+//WORK: Working space, dimension LWORK
+//LWORK: Size of WORK, if LWORK = -1, it returns the size of WORK in WORK[0]
 //Output:
 //U: polar factor of matrix A
-void dsyqdwh(int M, const double *A, int lda, double *U, int ldu)
+void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *Uprev, int *IPIV, double *QWORK, int *IWORK, double *WORK, int LWORK)
 {
+	if (LWORK == -1)
+	{
+		int BM = 2 * M;
+		int BN = M;
+		int INFO;
+		dgeqrf_(&BM, &BN, B, &BM, QWORK, WORK, &LWORK, &INFO);
+		double temp = *WORK;
+		dsytrf_("U", &M, A, &lda, IPIV, WORK, &LWORK, &INFO);
+		*WORK = (*WORK <= temp) ? temp : *WORK;
+		return;
+	}
+
 	//Construct initial matrix U = A / dsynormest(A, 3e-1)
 	//and choose initial L = 0.9 / condest(A)
-	const double *tempA = A; 
+	double *tempA = A; 
 	double *tempU = U;
+	double quo = 1.0 / dsynormest(M, A, lda, 3e-1, WORK);
 
 	for (int j = 0; j < M; j++)
 	{
@@ -75,25 +95,35 @@ void dsyqdwh(int M, const double *A, int lda, double *U, int ldu)
 		tempA += lda;
 		tempU += ldu;
 	}
+
+#if DEBUG
+	for (int j = 0; j < M; j++)
+	{
+		for (int i = 0; i < M; i++)
+		{
+			printf("%6f", A[i + j * lda]);
+		}
+		printf("\n");
+	}
+	for (int j = 0; j < M; j++)
+	{
+		for (int i = 0; i <= j; i++)
+		{
+			printf("%6f", U[i + j * ldu]);
+		}
+		printf("\n");
+	}
+#endif
 	
-	double *WORK = (double *)malloc(M * sizeof(double));
-	int *IWORK = (int *)malloc(M * sizeof(int));
-	double Anorm = dlansy_("1", "U", &M, U, &ldu, WORK);
-	int *IPIV = (int *)malloc(M * sizeof(int));
+	double Anorm = dlansy_("1", "U", &M, A, &lda, WORK);
 	double RCOND;
 	int INFO;
-	int LWORK = -1;
-	dsytrf_("U", &M, U, &ldu, IPIV, WORK, &LWORK, &INFO);
-	LWORK = *WORK;
-	free(WORK);
-	WORK = (double *)malloc(LWORK * sizeof(double));
-	dsytrf_("U", &M, U, &ldu, IPIV, WORK, &LWORK, &INFO);
-	free(WORK);
-	WORK = (double *)malloc(2 * M * sizeof(double));
-	dsycon_("U", &M, U, &ldu, IPIV, &Anorm, &RCOND, WORK, IWORK, &INFO);
+	dsytrf_("U", &M, A, &lda, IPIV, WORK, &LWORK, &INFO);
+	dsycon_("U", &M, A, &lda, IPIV, &Anorm, &RCOND, WORK, IWORK, &INFO);
 	double L = 0.9 * RCOND;
 	//printf("RCOND = %f\n", RCOND);
 	
+	/*
 	tempU = U;
 	tempA = A;
 	for (int j = 0; j < M; j++)
@@ -102,6 +132,7 @@ void dsyqdwh(int M, const double *A, int lda, double *U, int ldu)
 		tempA += lda;
 		tempU += ldu;
 	}
+	*/
 
 	//Fill the lower triangular part of U
 	tempU = U;
@@ -111,22 +142,31 @@ void dsyqdwh(int M, const double *A, int lda, double *U, int ldu)
 		{
 			tempU[i] = U[j + i * ldu];
 		}
+		tempU += ldu;
 	}
 
 	//Scaling
 	tempU = U;
 	int INCU = 1;
-	double quo = 1.0 / dsynormest(M, A, lda, 3e-1);
 	for (int j = 0; j < M; j++)
 	{
 		dscal_(&M, &quo, tempU, &INCU);
 		tempU += M;
 	}
-	
+
+#if DEBUG
+	printf("quo = %6f\n", quo);
+	for (int j = 0; j < M; j++)
+	{
+		for (int i = 0; i < M; i++)
+		{
+			printf("%6f", U[i + j * ldu]);
+		}
+		printf("\n");
+	}
+#endif
 	
 	//Start iteration
-	double *Uprev = (double *)malloc(M * M * sizeof(double));
-	double *B = (double *)malloc(2 * M * M * sizeof(double));
 	double tol1 = 10 * DBL_EPSILON / 2;
 	double tol2 = pow(tol1, 1.0 / 3.0);
 	int it = 0;
@@ -159,6 +199,7 @@ void dsyqdwh(int M, const double *A, int lda, double *U, int ldu)
 
 		//update L
 		L = L * (a + b * L2) / (1.0 + c * L2);
+		L = (L > 1) ? 1.0 : L;
 		
 		memset(B, 0, 2 * M * M * sizeof(double));
 		tempB = B;
@@ -180,15 +221,9 @@ void dsyqdwh(int M, const double *A, int lda, double *U, int ldu)
 		int BM = 2 * M;
 		int BN = M;
 		int LDB = BM;
-		double *TAU = (double *)malloc(BN * sizeof(double));
-		int LWORK = -1;
-		double *WORK = (double *)malloc(1 * sizeof(double));
 		int INFO;
-		dgeqrf_(&BM, &BN, B, &LDB, TAU, WORK, &LWORK, &INFO);
-		LWORK = *WORK;
-		WORK = (double *)malloc(LWORK * sizeof(double));
-		dgeqrf_(&BM, &BN, B, &LDB, TAU, WORK, &LWORK, &INFO);
-		dorgqr_(&BM, &BN, &BN, B, &LDB, TAU, WORK, &LWORK, &INFO);
+		dgeqrf_(&BM, &BN, B, &LDB, QWORK, WORK, &LWORK, &INFO);
+		dorgqr_(&BM, &BN, &BN, B, &LDB, QWORK, WORK, &LWORK, &INFO);
 
 		double ALPHA = (a - b / c) / sqrt(c);
 		double BETA = b / c;
@@ -223,6 +258,7 @@ void dsyqdwh(int M, const double *A, int lda, double *U, int ldu)
 			tempUprev += M;
 		}
 		delta = dlange_("F", &M, &M, Uprev, &M, WORK);
-		//printf("delta = %e, iter = %d\n", delta, it);
+		//printf("delta = %e, a = %e, b = %e, c = %e, L = %e, dd = %e, iter = %d\n", delta, a, b, c, L, dd, it);
 	}
+	//printf("%d\n", it);
 }
