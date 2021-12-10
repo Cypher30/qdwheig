@@ -3,7 +3,7 @@ QDWH=qdwh.c
 Main=Main.c
 OBJS=$(Main:.c=.o) $(QDWH:.c=.o)
 CC=gcc
-CFLAGS=-g -O0
+CFLAGS=-g -O2
 
 all: $(Target)
 $(Target):$(Main) $(QDWH)

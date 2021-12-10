@@ -1,13 +1,17 @@
 #include<stdio.h>
 #include<stdlib.h>
+#include<string.h>
+#include<sys/time.h>
 #include<time.h>
+#include<unistd.h>
+#include<math.h>
 #include "../include/reflapack.h"
 #include "../include/qdwheig.h"
 
 
-#define NORMEST_TEST 1
+#define NORMEST_TEST 0
 #define QR_TEST 0
-#define DSYQDWH_TEST 0 
+#define DSYQDWH_TEST 1 
 #define DGECON_TEST 0
 
 
@@ -93,9 +97,12 @@ int main(int argc, char** argv)
 #endif
 
 	//dsyqdwh test
-#if DSYQDWH_TEST		
+#if DSYQDWH_TEST
+	
 	fp = fopen("TEST.m", "w");
 	fprintf(fp, "function [A, U0, U1, error] = TEST\n");
+	
+	printf("%e\n", pow(-1, 1.0 / 3.0));
 	for (int j = 0; j < N; j++)
 	{
 		for (int i = 0; i < M; i++)
@@ -103,30 +110,95 @@ int main(int argc, char** argv)
 			if (i >= j)
 			{
 				A[i + j * lda] = (double) rand() / (double) RAND_MAX;
-				fprintf(fp, "A(%d, %d) = %.12f;\n", i + 1, j + 1, A[i + j * lda]);
+				fprintf(fp, "A(%d, %d) = %.16f;\n", i + 1, j + 1, A[i + j * lda]);
 			}
 			else
 			{
 				A[i + j * lda] = A[j + i * lda];
-				fprintf(fp, "A(%d, %d) = %.12f;\n", i + 1, j + 1, A[i + j * lda]);
+				fprintf(fp, "A(%d, %d) = %.16f;\n", i + 1, j + 1, A[i + j * lda]);
 			}
 		}
 	}
 	double *U = (double *)malloc(N * N * sizeof(double));
-	dsyqdwh(N, A, lda, U, N);
+	double *Uprev = (double *)malloc(N * N * sizeof(double));
+	double *B = (double *)malloc(2 * N * N * sizeof(double));
+	int *IPIV = (int *)malloc(N * sizeof(int));
+	int *IWORK = (int *)malloc(N * sizeof(int));
+	double *QWORK = (double *)malloc(N * sizeof(double));
+	double *WORK = (double *)malloc(1 * sizeof(double));
+	int LWORK = -1;
+	dsyqdwh(N, A, lda, U, N, B, Uprev, IPIV, QWORK, IWORK, WORK, LWORK);
+	LWORK = *WORK;
+	//printf("LWORK = %4d\n", LWORK);
+	free(WORK);
+	WORK = (double *)malloc(LWORK * sizeof(double));
+	
+	struct timeval start, end;
+	double best = 0.0, temp;
+	double *Atemp = (double *)malloc(N * lda * sizeof(double));
+	memcpy(Atemp, A, N * lda * sizeof(double));
+	dsyqdwh(N, Atemp, lda, U, N, B, Uprev, IPIV, QWORK, IWORK, WORK, LWORK);
+	for (int i = 0; i < 5; i++)
+	{
+		memcpy(Atemp, A, N * lda * sizeof(double));
+		gettimeofday(&start, NULL);
+		dsyqdwh(N, Atemp, lda, U, N, B, Uprev, IPIV, QWORK, IWORK, WORK, LWORK);
+		gettimeofday(&end, NULL);
+		temp = ((double) end.tv_sec - (double) start.tv_sec) * 1.0e3 + ((double) end.tv_usec - (double) start.tv_usec) / 1.0e3;
+		if (i == 0 || temp < best)
+		{
+			best = temp;
+		}
+	}
+	printf("QDWH running time = %.6f (ms)\n", best);
+	free(WORK);
+
+	WORK = (double *)malloc(1 * sizeof(double));
+	double *W = (double *)malloc(N * sizeof(double));
+	LWORK = -1;
+	int INFO;
+	dsyev_("V", "U", &N, A, &lda, W, WORK, &LWORK, &INFO);
+	LWORK = *WORK;
+	free(WORK);
+	WORK = (double *)malloc(LWORK * sizeof(double));
+	memcpy(Atemp, A, N * lda * sizeof(double));
+	dsyev_("V", "U", &N, Atemp, &lda, W, WORK, &LWORK, &INFO);
+	for (int i = 0; i < 5; i++)
+	{
+		memcpy(Atemp, A, N * lda * sizeof(double));
+		gettimeofday(&start, NULL);
+		dsyev_("V", "U", &N, Atemp, &lda, W, WORK, &LWORK, &INFO);
+		gettimeofday(&end, NULL);
+		temp = ((double) end.tv_sec - (double) start.tv_sec) * 1.0e3 + ((double) end.tv_usec - (double) start.tv_usec) / 1.0e3;
+		if (i == 0 || temp < best)
+		{
+			best = temp;
+		}
+	}
+	printf("DSYEV running time = %.6f (ms)\n", best);
+
+	
 	for (int j = 0; j < N; j++)
 	{
 		for (int i = 0; i < N; i++)
 		{
-			fprintf(fp, "U1(%d, %d) = %.12f;\n", i + 1, j + 1, U[i + j * N]);
+			fprintf(fp, "U1(%d, %d) = %.16f;\n", i + 1, j + 1, U[i + j * N]);
 		}
 	}
+	
 
 	fprintf(fp, "U0 = qdwh(A, normest(A, 3e-1), 0.9 / condest(A));\n");
 	fprintf(fp, "error = norm(U0 - U1, 'fro');\n");
 	fprintf(fp, "end");
+	
 	fclose(fp);
 	free(U);
+	free(Uprev);
+	free(B);
+	free(IPIV);
+	free(IWORK);
+	free(QWORK);
+	free(WORK);
 #endif
 
 	//dlange & dgecon test
