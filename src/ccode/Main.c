@@ -18,9 +18,9 @@
 int main(int argc, char** argv)
 {
 	//Initialization
-	if (argc != 4)
+	if (argc != 5)
 	{
-		printf("Test function usage: ./Main M N lda\n");
+		printf("Test function usage: ./Main M N lda PRINT\n");
 		exit(-1);
 	}
 
@@ -28,6 +28,7 @@ int main(int argc, char** argv)
 	int M = atoi(argv[1]);
 	int N = atoi(argv[2]);
 	int lda = atoi(argv[3]);
+	int PRINT = atoi(argv[4]);
 	double *A = (double *)malloc(N * lda * sizeof(double));
 	srand(time(NULL));
 	FILE *fp;
@@ -98,11 +99,12 @@ int main(int argc, char** argv)
 
 	//dsyqdwh test
 #if DSYQDWH_TEST
-	
-	fp = fopen("TEST.m", "w");
-	fprintf(fp, "function [A, U0, U1, error] = TEST\n");
-	
-	printf("%e\n", pow(-1, 1.0 / 3.0));
+	if (PRINT)
+	{
+		fp = fopen("TEST.m", "w");
+		fprintf(fp, "function [A, U0, U1, error] = TEST\n");
+	}
+	//printf("%e\n", pow(-1, 1.0 / 3.0));
 	for (int j = 0; j < N; j++)
 	{
 		for (int i = 0; i < M; i++)
@@ -110,12 +112,12 @@ int main(int argc, char** argv)
 			if (i >= j)
 			{
 				A[i + j * lda] = (double) rand() / (double) RAND_MAX;
-				fprintf(fp, "A(%d, %d) = %.16f;\n", i + 1, j + 1, A[i + j * lda]);
+				if (PRINT) fprintf(fp, "A(%d, %d) = %.16f;\n", i + 1, j + 1, A[i + j * lda]);
 			}
 			else
 			{
 				A[i + j * lda] = A[j + i * lda];
-				fprintf(fp, "A(%d, %d) = %.16f;\n", i + 1, j + 1, A[i + j * lda]);
+				if (PRINT) fprintf(fp, "A(%d, %d) = %.16f;\n", i + 1, j + 1, A[i + j * lda]);
 			}
 		}
 	}
@@ -177,21 +179,23 @@ int main(int argc, char** argv)
 	}
 	printf("DSYEV running time = %.6f (ms)\n", best);
 
-	
-	for (int j = 0; j < N; j++)
+	if (PRINT)
 	{
-		for (int i = 0; i < N; i++)
+		for (int j = 0; j < N; j++)
 		{
-			fprintf(fp, "U1(%d, %d) = %.16f;\n", i + 1, j + 1, U[i + j * N]);
+			for (int i = 0; i < N; i++)
+			{
+				fprintf(fp, "U1(%d, %d) = %.16f;\n", i + 1, j + 1, U[i + j * N]);
+			}
 		}
-	}
-	
 
-	fprintf(fp, "U0 = qdwh(A, normest(A, 3e-1), 0.9 / condest(A));\n");
-	fprintf(fp, "error = norm(U0 - U1, 'fro');\n");
-	fprintf(fp, "end");
-	
-	fclose(fp);
+
+		fprintf(fp, "U0 = qdwh(A, normest(A, 3e-1), 0.9 / condest(A));\n");
+		fprintf(fp, "error = norm(U0 - U1, 'fro');\n");
+		fprintf(fp, "end");
+		fclose(fp);
+	}
+
 	free(U);
 	free(Uprev);
 	free(B);

@@ -230,23 +230,6 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 		dgemm_("N", "T", &M, &M, &BN, &ALPHA, B, &LDB, B + M, &LDB, &BETA, U, &ldu);
 
 		tempU = U;
-		for (int j = 0; j < M; j++)
-		{
-			for (int i = 0; i < M; i++)
-			{
-				if (i > j)
-				{
-					tempU[i] = (tempU[i] + U[j + i * ldu]) / 2;
-				}
-				else
-				{
-					tempU[i] = U[j + i * ldu];
-				}
-			}
-			tempU += ldu;
-		}
-
-		tempU = U;
 		tempUprev = Uprev;
 		for (int j = 0; j < M; j++)
 		{
@@ -261,4 +244,20 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 		//printf("delta = %e, a = %e, b = %e, c = %e, L = %e, dd = %e, iter = %d\n", delta, a, b, c, L, dd, it);
 	}
 	//printf("%d\n", it);
+	tempU = U;
+	for (int j = 0; j < M; j++)
+	{
+		for (int i = 0; i < M; i++)
+		{
+			if (i > j)
+			{
+				tempU[i] = (tempU[i] + U[j + i * ldu]) / 2;
+			}
+			else
+			{
+				tempU[i] = U[j + i * ldu];
+			}
+		}
+		tempU += ldu;
+	}
 }

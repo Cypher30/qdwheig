@@ -35,3 +35,9 @@ Some notes for calling LAPACK...
 You should call DGETRF before DGECON to finish LU factorization for work in DGECON...
 
 I'm stupid lol... Trying to figure out why my DGECON computes such a big estimation for 1-Norm condition number...
+
+### 2021.12.10
+
+Finished v1.1 branch, try symmatric operation inside the QDWH algorithm. But the performance doesn't look really good... It is not able to beat dsyev() in small cases, and in large cases, it is faster than dsyev() but, I haven't implement other part of the QDWH-eig. I tried some optimization but it doesn't work very well. The biggest problem might be the memory copy.
+
+But still great work today, keep calm and carry on!
