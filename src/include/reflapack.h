@@ -12,3 +12,5 @@ extern void dsytrf_(char *UPLO, int *N, double *A, int *LDA, int *IPIV, double *
 extern void dsycon_(char *UPLO, int *N, double *A, int *LDA, int *IPIV, double *ANORM, double *RCOND, double *WORK, int *IWORK, int *INFO);
 extern void dsymv_(char *UPLO, int *N, double *ALPHA, double *A, int *LDA, double *X, int *INCX, double *BETA, double *Y, int *INCY);
 extern void dsyev_(char *JOBZ, char *UPLO, int *N, double *A, int *LDA, double *W, double *WORK, int *LWORK, int *INFO);
+extern void dpotrf_(char *UPLO, int *N, double *A, int *LDA, int *INFO);
+extern void dsyrk_(char *UPLO, char *TRANS, int *N, int *K, double *ALPHA, double *A, int *LDA, double *BETA, double *C, int *LDC);

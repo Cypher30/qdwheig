@@ -38,6 +38,10 @@ I'm stupid lol... Trying to figure out why my DGECON computes such a big estimat
 
 ### 2021.12.10
 
-Finished v1.1 branch, try symmatric operation inside the QDWH algorithm. But the performance doesn't look really good... It is not able to beat dsyev() in small cases, and in large cases, it is faster than dsyev() but, I haven't implement other part of the QDWH-eig. I tried some optimization but it doesn't work very well. The biggest problem might be the memory copy.
+Finished v1.1 branch, try symmetric operation inside the QDWH algorithm. But the performance doesn't look really good... It is not able to beat dsyev() in small cases, and in large cases, it is faster than dsyev() but, I haven't implement other part of the QDWH-eig. I tried some optimization but it doesn't work very well. The biggest problem might be the memory copy.
 
 But still great work today, keep calm and carry on!
+
+### 2021.12.11
+
+Try more symmetric operation and happy to see that the performance improves! Next goal is to implement the cholesky version of QDWH for well conditioned U.

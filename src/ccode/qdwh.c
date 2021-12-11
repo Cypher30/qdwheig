@@ -185,7 +185,7 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 		tempU = U;
 		for (int j = 0; j < M; j++)
 		{
-			memcpy(tempUprev, tempU, M * sizeof(double));
+			memcpy(tempUprev, tempU, (j + 1) * sizeof(double));
 			tempUprev += M;
 			tempU += ldu;
 		}
@@ -201,7 +201,6 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 		L = L * (a + b * L2) / (1.0 + c * L2);
 		L = (L > 1) ? 1.0 : L;
 		
-		memset(B, 0, 2 * M * M * sizeof(double));
 		tempB = B;
 		tempU = U;
 		for (int j = 0; j < M; j++)
@@ -213,9 +212,12 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 			tempB += 2 * M;
 			tempU += ldu;
 		}
+		tempB = B;
 		for (int j = 0; j < M; j++)
 		{
-			B[M + j + j * 2 * M] = 1.0;
+			memset(tempB + M, 0, M * sizeof(double));
+			tempB[M + j] = 1.0;
+			tempB += 2 * M;
 		}
 
 		int BM = 2 * M;
@@ -233,14 +235,14 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 		tempUprev = Uprev;
 		for (int j = 0; j < M; j++)
 		{
-			for (int i = 0; i < M; i++)
+			for (int i = 0; i < j + 1; i++)
 			{
 				tempUprev[i] = tempUprev[i] - tempU[i];
 			}
 			tempU += ldu;
 			tempUprev += M;
 		}
-		delta = dlange_("F", &M, &M, Uprev, &M, WORK);
+		delta = dlansy_("F", "U", &M, Uprev, &M, WORK);
 		//printf("delta = %e, a = %e, b = %e, c = %e, L = %e, dd = %e, iter = %d\n", delta, a, b, c, L, dd, it);
 	}
 	//printf("%d\n", it);
