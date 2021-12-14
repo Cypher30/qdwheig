@@ -45,3 +45,7 @@ But still great work today, keep calm and carry on!
 ### 2021.12.11
 
 Try more symmetric operation and happy to see that the performance improves! Next goal is to implement the cholesky version of QDWH for well conditioned U.
+
+### 2021.12.14
+
+Right now I have finished the Cholesky part and see a great boost of the performance, keep on going!

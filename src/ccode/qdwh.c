@@ -95,25 +95,6 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 		tempA += lda;
 		tempU += ldu;
 	}
-
-#if DEBUG
-	for (int j = 0; j < M; j++)
-	{
-		for (int i = 0; i < M; i++)
-		{
-			printf("%6f", A[i + j * lda]);
-		}
-		printf("\n");
-	}
-	for (int j = 0; j < M; j++)
-	{
-		for (int i = 0; i <= j; i++)
-		{
-			printf("%6f", U[i + j * ldu]);
-		}
-		printf("\n");
-	}
-#endif
 	
 	double Anorm = dlansy_("1", "U", &M, A, &lda, WORK);
 	double RCOND;
@@ -154,17 +135,6 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 		tempU += M;
 	}
 
-#if DEBUG
-	printf("quo = %6f\n", quo);
-	for (int j = 0; j < M; j++)
-	{
-		for (int i = 0; i < M; i++)
-		{
-			printf("%6f", U[i + j * ldu]);
-		}
-		printf("\n");
-	}
-#endif
 	
 	//Start iteration
 	double tol1 = 10 * DBL_EPSILON / 2;
@@ -201,36 +171,124 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 		L = L * (a + b * L2) / (1.0 + c * L2);
 		L = (L > 1) ? 1.0 : L;
 		
-		tempB = B;
-		tempU = U;
-		for (int j = 0; j < M; j++)
+		if (c > 100)
 		{
-			memcpy(tempB, tempU, M * sizeof(double));
-			double DA = sqrt(c);
-			int INCX = 1;
-			dscal_(&M, &DA, tempB, &INCX);
-			tempB += 2 * M;
-			tempU += ldu;
+			tempB = B;
+			tempU = U;
+			for (int j = 0; j < M; j++)
+			{
+				memcpy(tempB, tempU, M * sizeof(double));
+				double DA = sqrt(c);
+				int INCX = 1;
+				dscal_(&M, &DA, tempB, &INCX);
+				tempB += 2 * M;
+				tempU += ldu;
+			}
+			tempB = B;
+			for (int j = 0; j < M; j++)
+			{
+				memset(tempB + M, 0, M * sizeof(double));
+				tempB[M + j] = 1.0;
+				tempB += 2 * M;
+			}
+
+			int BM = 2 * M;
+			int BN = M;
+			int LDB = BM;
+			int INFO;
+			dgeqrf_(&BM, &BN, B, &LDB, QWORK, WORK, &LWORK, &INFO);
+			dorgqr_(&BM, &BN, &BN, B, &LDB, QWORK, WORK, &LWORK, &INFO);
+
+			double ALPHA = (a - b / c) / sqrt(c);
+			double BETA = b / c;
+			dgemm_("N", "T", &M, &M, &BN, &ALPHA, B, &LDB, B + M, &LDB, &BETA, U, &ldu);
 		}
-		tempB = B;
-		for (int j = 0; j < M; j++)
+		else
 		{
-			memset(tempB + M, 0, M * sizeof(double));
-			tempB[M + j] = 1.0;
-			tempB += 2 * M;
+			int LDB = 2 * M;
+			tempB = B;
+			tempU = U;
+			for (int j = 0; j < M; j++)
+			{
+				memcpy(tempB, tempU, M * sizeof(double));
+				tempB += 2 * M;
+				tempU += ldu;
+			}
+			tempB = B;
+			for (int j = 0; j < M; j++)
+			{
+				memset(tempB + M, 0, M * sizeof(double));
+				tempB[M + j] = 1.0;
+				tempB += 2 * M;
+			}
+#if DEBUG
+			for (int i = 0; i < 2 * M; i++)
+			{
+				for (int j = 0; j < M; j++)
+				{
+					printf("%.6f ", B[i + j * LDB]);
+				}
+				printf("\n");
+			}
+			printf("\n");
+#endif
+			double BETA = 1.0;
+			int INFO;
+			dsyrk_("U", "T", &M, &M, &c, B, &LDB, &BETA, B + M, &LDB);
+#if DEBUG
+			printf("c = %.6f\n", c);
+			for (int i = 0; i < 2 * M; i++)
+			{
+				for (int j = 0; j < M; j++)
+				{
+					printf("%.6f ", B[i + j * LDB]);
+				}
+				printf("\n");
+			}
+			printf("\n");
+#endif
+			dpotrf_("U", &M, B + M, &LDB, &INFO);
+#if DEBUG
+			for (int i = 0; i < 2 * M; i++)
+			{
+				for (int j = 0; j < M; j++)
+				{
+					printf("%.6f ", B[i + j * LDB]);
+				}
+				printf("\n");
+			}
+			printf("\n");
+#endif
+			for (int i = 0; i < M; i++)
+			{
+				IPIV[i] = i + 1;
+			}
+			dgetrs_("T", &M, &M, B + M, &LDB, IPIV, B, &LDB, &INFO);
+			dgetrs_("N", &M, &M, B + M, &LDB, IPIV, B, &LDB, &INFO);
+#if DEBUG
+			for (int i = 0; i < 2 * M; i++)
+			{
+				for (int j = 0; j < M; j++)
+				{
+					printf("%.6f ", B[i + j * LDB]);
+				}
+				printf("\n");
+			}
+			printf("\n");
+#endif
+			double ALPHA = a - b / c;
+			BETA = b / c;
+			int INCX = 1, INCY = 1;
+			tempB = B;
+			tempU = U;
+			for (int i = 0; i < M; i++)
+			{
+				dscal_(&M, &BETA, tempU, &INCY);
+				daxpy_(&M, &ALPHA, tempB, &INCX, tempU, &INCY);
+				tempB += 2 * M;
+				tempU += M;
+			}
 		}
-
-		int BM = 2 * M;
-		int BN = M;
-		int LDB = BM;
-		int INFO;
-		dgeqrf_(&BM, &BN, B, &LDB, QWORK, WORK, &LWORK, &INFO);
-		dorgqr_(&BM, &BN, &BN, B, &LDB, QWORK, WORK, &LWORK, &INFO);
-
-		double ALPHA = (a - b / c) / sqrt(c);
-		double BETA = b / c;
-		dgemm_("N", "T", &M, &M, &BN, &ALPHA, B, &LDB, B + M, &LDB, &BETA, U, &ldu);
-
 		tempU = U;
 		tempUprev = Uprev;
 		for (int j = 0; j < M; j++)
@@ -245,6 +303,8 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 		delta = dlansy_("F", "U", &M, Uprev, &M, WORK);
 		//printf("delta = %e, a = %e, b = %e, c = %e, L = %e, dd = %e, iter = %d\n", delta, a, b, c, L, dd, it);
 	}
+	
+	
 	//printf("%d\n", it);
 	tempU = U;
 	for (int j = 0; j < M; j++)

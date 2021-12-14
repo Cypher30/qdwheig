@@ -13,6 +13,7 @@
 #define QR_TEST 0
 #define DSYQDWH_TEST 1 
 #define DGECON_TEST 0
+#define DGETRF_TEST 0
 
 
 int main(int argc, char** argv)
@@ -244,6 +245,29 @@ int main(int argc, char** argv)
 	fclose(fp);
 #endif
 
+#if DGETRF_TEST
+	for (int j = 0; j < N; j++)
+	{
+		for (int i = 0; i < N; i++)
+		{
+			if (i <= j)
+			{
+				A[i + j * lda] = (double) rand() / (double) RAND_MAX;
+			}
+			else
+			{
+				A[i + j * lda] = 0.0;
+			}
+		}
+	}
+	int *IPIV = (int *)malloc(N * sizeof(int));
+	int INFO;
+	dgetrf_(&N, &N, A, &lda, IPIV, &INFO);
+	for (int i = 0; i < M; i++)
+	{
+		printf("%4d\n", IPIV[i]);
+	}
+#endif
 	
 	
 	free(A);

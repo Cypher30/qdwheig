@@ -14,3 +14,5 @@ extern void dsymv_(char *UPLO, int *N, double *ALPHA, double *A, int *LDA, doubl
 extern void dsyev_(char *JOBZ, char *UPLO, int *N, double *A, int *LDA, double *W, double *WORK, int *LWORK, int *INFO);
 extern void dpotrf_(char *UPLO, int *N, double *A, int *LDA, int *INFO);
 extern void dsyrk_(char *UPLO, char *TRANS, int *N, int *K, double *ALPHA, double *A, int *LDA, double *BETA, double *C, int *LDC);
+extern void dgetrs_(char *TRANS, int *N, int *NRHS, double *A, int *LDA, int *IPIV, double *B, int *LDB, int *INFO);
+extern void daxpy_(int *N, double *DA, double *DX, int *INCX, double *DY, int *INCY);
