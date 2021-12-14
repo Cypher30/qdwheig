@@ -57,19 +57,17 @@ double dsynormest(int M, const double *A, int lda, double tol, double *WORK)
 //QDWH algorithm to compute polar factor U of a symmetric matrix A
 //INPUT: 
 //M: Dimension of A
-//A: M * M symmetric matrix with leading dimension lda, column major, fill upper triangular part
+//A: M * M symmetric matrix with leading dimension lda, column major, fill upper triangular part and store polar factor (upper triangular part)
 //lda: Leading dimenstion of A
-//U: Space to store polar factor
-//ldu: Leading dimension of U
+//U: Work space dimension M * M
 //B: Working space, double, dimenstion 2M * M
-//Uprev: Working space, double, dimension M * M
 //IPIV: Working space, int, dimension M
 //QWORK: Working space, double, dimension M
 //WORK: Working space, dimension LWORK
 //LWORK: Size of WORK, if LWORK = -1, it returns the size of WORK in WORK[0]
 //Output:
 //U: polar factor of matrix A
-void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *Uprev, int *IPIV, double *QWORK, int *IWORK, double *WORK, int LWORK)
+void dsyqdwh(int M, double *A, int lda, double *U, double *B, int *IPIV, double *QWORK, int *IWORK, double *WORK, int LWORK)
 {
 	if (LWORK == -1)
 	{
@@ -93,7 +91,7 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 	{
 		memcpy(tempU, tempA, (j + 1) * sizeof(double));
 		tempA += lda;
-		tempU += ldu;
+		tempU += M;
 	}
 	
 	double Anorm = dlansy_("1", "U", &M, A, &lda, WORK);
@@ -121,9 +119,9 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 	{
 		for (int i = j + 1; i < M; i++)
 		{
-			tempU[i] = U[j + i * ldu];
+			tempU[i] = U[j + i * M];
 		}
-		tempU += ldu;
+		tempU += M;
 	}
 
 	//Scaling
@@ -141,7 +139,6 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 	double tol2 = pow(tol1, 1.0 / 3.0);
 	int it = 0;
 	double delta = 100.0;
-	double *tempUprev;
 	double *tempB;
 
 	//printf("tol1 = %e, tol2 = %e\n", tol1, tol2);
@@ -151,13 +148,13 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 	{
 		it = it + 1;
 		
-		tempUprev = Uprev;
+		tempA = A;
 		tempU = U;
 		for (int j = 0; j < M; j++)
 		{
-			memcpy(tempUprev, tempU, (j + 1) * sizeof(double));
-			tempUprev += M;
-			tempU += ldu;
+			memcpy(tempA, tempU, (j + 1) * sizeof(double));
+			tempA += lda;
+			tempU += M;
 		}
 
 		double L2 = L * L;
@@ -182,7 +179,7 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 				int INCX = 1;
 				dscal_(&M, &DA, tempB, &INCX);
 				tempB += 2 * M;
-				tempU += ldu;
+				tempU += M;
 			}
 			tempB = B;
 			for (int j = 0; j < M; j++)
@@ -201,7 +198,7 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 
 			double ALPHA = (a - b / c) / sqrt(c);
 			double BETA = b / c;
-			dgemm_("N", "T", &M, &M, &BN, &ALPHA, B, &LDB, B + M, &LDB, &BETA, U, &ldu);
+			dgemm_("N", "T", &M, &M, &BN, &ALPHA, B, &LDB, B + M, &LDB, &BETA, U, &M);
 		}
 		else
 		{
@@ -212,7 +209,7 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 			{
 				memcpy(tempB, tempU, M * sizeof(double));
 				tempB += 2 * M;
-				tempU += ldu;
+				tempU += M;
 			}
 			tempB = B;
 			for (int j = 0; j < M; j++)
@@ -290,36 +287,31 @@ void dsyqdwh(int M, double *A, int lda, double *U, int ldu, double *B, double *U
 			}
 		}
 		tempU = U;
-		tempUprev = Uprev;
+		tempA = A;
 		for (int j = 0; j < M; j++)
 		{
 			for (int i = 0; i < j + 1; i++)
 			{
-				tempUprev[i] = tempUprev[i] - tempU[i];
+				tempA[i] -= tempU[i];
 			}
-			tempU += ldu;
-			tempUprev += M;
+			tempU += M;
+			tempA += lda;
 		}
-		delta = dlansy_("F", "U", &M, Uprev, &M, WORK);
+		delta = dlansy_("F", "U", &M, A, &lda, WORK);
 		//printf("delta = %e, a = %e, b = %e, c = %e, L = %e, dd = %e, iter = %d\n", delta, a, b, c, L, dd, it);
 	}
 	
 	
 	//printf("%d\n", it);
 	tempU = U;
+	tempA = A;
 	for (int j = 0; j < M; j++)
 	{
-		for (int i = 0; i < M; i++)
+		for (int i = 0; i < j + 1; i++)
 		{
-			if (i > j)
-			{
-				tempU[i] = (tempU[i] + U[j + i * ldu]) / 2;
-			}
-			else
-			{
-				tempU[i] = U[j + i * ldu];
-			}
+			tempA[i] = (tempU[i] + U[j + i * M]) / 2;
 		}
-		tempU += ldu;
+		tempU += M;
+		tempA += lda;
 	}
 }

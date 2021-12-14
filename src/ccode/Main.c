@@ -123,14 +123,13 @@ int main(int argc, char** argv)
 		}
 	}
 	double *U = (double *)malloc(N * N * sizeof(double));
-	double *Uprev = (double *)malloc(N * N * sizeof(double));
 	double *B = (double *)malloc(2 * N * N * sizeof(double));
 	int *IPIV = (int *)malloc(N * sizeof(int));
 	int *IWORK = (int *)malloc(N * sizeof(int));
 	double *QWORK = (double *)malloc(N * sizeof(double));
 	double *WORK = (double *)malloc(1 * sizeof(double));
 	int LWORK = -1;
-	dsyqdwh(N, A, lda, U, N, B, Uprev, IPIV, QWORK, IWORK, WORK, LWORK);
+	dsyqdwh(N, A, lda, U, B, IPIV, QWORK, IWORK, WORK, LWORK);
 	LWORK = *WORK;
 	//printf("LWORK = %4d\n", LWORK);
 	free(WORK);
@@ -140,12 +139,12 @@ int main(int argc, char** argv)
 	double best = 0.0, temp;
 	double *Atemp = (double *)malloc(N * lda * sizeof(double));
 	memcpy(Atemp, A, N * lda * sizeof(double));
-	dsyqdwh(N, Atemp, lda, U, N, B, Uprev, IPIV, QWORK, IWORK, WORK, LWORK);
+	dsyqdwh(N, Atemp, lda, U, B, IPIV, QWORK, IWORK, WORK, LWORK);
 	for (int i = 0; i < 5; i++)
 	{
 		memcpy(Atemp, A, N * lda * sizeof(double));
 		gettimeofday(&start, NULL);
-		dsyqdwh(N, Atemp, lda, U, N, B, Uprev, IPIV, QWORK, IWORK, WORK, LWORK);
+		dsyqdwh(N, Atemp, lda, U, B, IPIV, QWORK, IWORK, WORK, LWORK);
 		gettimeofday(&end, NULL);
 		temp = ((double) end.tv_sec - (double) start.tv_sec) * 1.0e3 + ((double) end.tv_usec - (double) start.tv_usec) / 1.0e3;
 		if (i == 0 || temp < best)
@@ -155,6 +154,22 @@ int main(int argc, char** argv)
 	}
 	printf("QDWH running time = %.6f (ms)\n", best);
 	free(WORK);
+	if (PRINT)
+	{
+		for (int j = 0; j < N; j++)
+		{
+			for (int i = 0; i < j + 1; i++)
+			{
+				fprintf(fp, "U1(%d, %d) = %.16f;\n", i + 1, j + 1, Atemp[i + j * lda]);
+			}
+		}
+
+
+		fprintf(fp, "U0 = qdwh(A, normest(A, 3e-1), 0.9 / condest(A));\n");
+		fprintf(fp, "error = norm(U0 - U1, 'fro');\n");
+		fprintf(fp, "end");
+		fclose(fp);
+	}
 
 	WORK = (double *)malloc(1 * sizeof(double));
 	double *W = (double *)malloc(N * sizeof(double));
@@ -180,25 +195,7 @@ int main(int argc, char** argv)
 	}
 	printf("DSYEV running time = %.6f (ms)\n", best);
 
-	if (PRINT)
-	{
-		for (int j = 0; j < N; j++)
-		{
-			for (int i = 0; i < N; i++)
-			{
-				fprintf(fp, "U1(%d, %d) = %.16f;\n", i + 1, j + 1, U[i + j * N]);
-			}
-		}
-
-
-		fprintf(fp, "U0 = qdwh(A, normest(A, 3e-1), 0.9 / condest(A));\n");
-		fprintf(fp, "error = norm(U0 - U1, 'fro');\n");
-		fprintf(fp, "end");
-		fclose(fp);
-	}
-
 	free(U);
-	free(Uprev);
 	free(B);
 	free(IPIV);
 	free(IWORK);
